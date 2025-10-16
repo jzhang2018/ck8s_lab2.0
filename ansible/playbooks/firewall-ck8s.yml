@@ -1,0 +1,76 @@
+---
+- name: Configure firewall for CK8s nodes with dry-run reporting
+  hosts: all
+  become: true
+  gather_facts: false
+
+  vars:
+    # Control-plane rules
+    cp_rules:
+      - { port: 22, proto: tcp, comment: 'SSH from controller' }
+      - { port: 6443, proto: tcp, comment: 'ck8s kube-apiserver' }
+      - { port: '2379:2380', proto: tcp, comment: 'ck8s etcd' }
+      - { port: 10250, proto: tcp, comment: 'ck8s kubelet API' }
+      - { port: 10257, proto: tcp, comment: 'ck8s kube-controller-manager' }
+      - { port: 10259, proto: tcp, comment: 'ck8s kube-scheduler' }
+      - { port: 8472, proto: udp, comment: 'ck8s cilium VXLAN' }
+      - { port: 9000, proto: tcp, comment: 'ck8s k8s-dqlite (optional)' }
+
+    # Worker rules
+    worker_rules:
+      - { port: 22, proto: tcp, comment: 'SSH from controller' }
+      - { port: 10250, proto: tcp, comment: 'ck8s kubelet API' }
+      - { port: 10256, proto: tcp, comment: 'ck8s kube-proxy' }
+      - { port: '30000:32767', proto: tcp, comment: 'ck8s NodePort TCP Services' }
+      - { port: '30000:32767', proto: udp, comment: 'ck8s NodePort UDP Services' }
+      - { port: 8472, proto: udp, comment: 'ck8s cilium VXLAN' }
+
+  tasks:
+    - name: Ensure UFW is installed
+      ansible.builtin.package:
+        name: ufw
+        state: present
+
+    - name: Ensure default deny incoming and allow outgoing
+      ansible.builtin.ufw:
+        state: enabled
+        direction: incoming
+        policy: deny
+
+    - name: Allow outgoing traffic
+      ansible.builtin.ufw:
+        state: enabled
+        direction: outgoing
+        policy: allow
+
+    - name: Determine host roles
+      ansible.builtin.set_fact:
+        is_control_plane: "{{ inventory_hostname in groups['control_planes'] | default([]) }}"
+        is_worker: "{{ inventory_hostname in groups['workers'] | default([]) }}"
+
+    - name: Combine firewall rules for this host
+      ansible.builtin.set_fact:
+        ufw_host_rules: >-
+          {{ (cp_rules if is_control_plane else []) + (worker_rules if is_worker else []) }}
+
+    - name: Dry-run check - list rules that would be applied
+      ansible.builtin.debug:
+        msg: "Host {{ inventory_hostname }} would apply UFW rule: {{ item.port }}/{{ item.proto }} comment '{{ item.comment }}'"
+      loop: "{{ ufw_host_rules }}"
+
+    - name: Apply firewall rules
+      ansible.builtin.ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop: "{{ ufw_host_rules }}"
+
+    - name: Show applied firewall rules
+      ansible.builtin.command: ufw status numbered
+      register: ufw_status
+      changed_when: false
+
+    - name: Display applied UFW rules
+      ansible.builtin.debug:
+        var: ufw_status.stdout_lines

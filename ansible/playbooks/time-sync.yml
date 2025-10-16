@@ -1,0 +1,20 @@
+---
+- name: Configure time synchronization with timedatectl
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure systemd-timesyncd is installed
+      ansible.builtin.package:
+        name: systemd-timesyncd
+        state: present
+
+    - name: Enable NTP time sync
+      ansible.builtin.command: timedatectl set-ntp true
+
+    - name: Verify time sync status
+      ansible.builtin.command: timedatectl status
+      register: time_status
+
+    - name: Display time sync summary
+      ansible.builtin.debug:
+        var: time_status.stdout

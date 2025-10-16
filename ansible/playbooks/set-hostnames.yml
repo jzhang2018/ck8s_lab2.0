@@ -1,0 +1,26 @@
+- name: Configure hostnames for CK8s nodes
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Set system hostname
+      hostname:
+        name: "{{ hostname }}"
+
+    - name: Ensure /etc/hosts contains all cluster nodes
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "{{ hostvars[item].ansible_host }} {{ hostvars[item].hostname }}"
+        state: present
+      loop: "{{ groups['control_planes'] + groups['workers'] | unique }}"
+
+    - name: Verify hostname
+      ansible.builtin.command: hostnamectl
+      register: hostname_output
+
+    - name: Show verification
+      ansible.builtin.debug:
+        msg: |
+          Host {{ inventory_hostname }} reports:
+          {{ hostname_output.stdout }}

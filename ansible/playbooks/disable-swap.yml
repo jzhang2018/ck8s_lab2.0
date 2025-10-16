@@ -1,0 +1,29 @@
+---
+- name: Disable swap on all CK8s nodes
+  hosts: all
+  become: true
+  tasks:
+    - name: Disable swap immediately
+      ansible.builtin.command: swapoff -a
+
+    - name: Comment out swap entries in /etc/fstab
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*\bswap\b.*)'
+        replace: '# \1'
+      register: swap_fstab
+
+    - name: Show confirmation
+      ansible.builtin.debug:
+        msg: "Swap disabled and fstab entries commented on {{ inventory_hostname }}"
+      when: swap_fstab.changed
+
+    - name: Verify swap is disabled
+      ansible.builtin.command: free -h
+      register: swap_status
+
+    - name: Show swap status
+      ansible.builtin.debug:
+        msg: "Swap status on {{ inventory_hostname }}:\n{{ swap_status.stdout }}"
+
+                        

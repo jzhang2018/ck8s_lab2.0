@@ -1,0 +1,157 @@
+default-base: ubuntu@24.04/stable
+applications:
+  calico:
+    charm: calico
+    channel: latest/stable
+    revision: 136
+    resources:
+      calico: 134
+      calico-arm64: 134
+    options:
+      vxlan: Always
+    annotations:
+      gui-x: "475"
+      gui-y: "605"
+  containerd:
+    charm: containerd
+    channel: latest/stable
+    revision: 93
+    resources:
+      containerd: 3
+    annotations:
+      gui-x: "475"
+      gui-y: "800"
+  easyrsa:
+    charm: easyrsa
+    channel: latest/stable
+    revision: 78
+    resources:
+      easyrsa: 3
+    num_units: 1
+    to:
+    - "2"
+    annotations:
+      gui-x: "90"
+      gui-y: "420"
+    constraints: arch=amd64 cpu-cores=1 mem=4096 root-disk=16384
+  etcd:
+    charm: etcd
+    channel: latest/stable
+    revision: 791
+    resources:
+      core: 0
+      etcd: 3
+      snapshot: 0
+    num_units: 3
+    to:
+    - "3"
+    - "4"
+    - "5"
+    options:
+      channel: 3.4/stable
+    annotations:
+      gui-x: "800"
+      gui-y: "420"
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+    storage:
+      data: loop,1024M
+  kubeapi-load-balancer:
+    charm: kubeapi-load-balancer
+    channel: latest/stable
+    revision: 208
+    resources:
+      nginx-prometheus-exporter: 1
+    num_units: 1
+    to:
+    - "6"
+    expose: true
+    annotations:
+      gui-x: "450"
+      gui-y: "250"
+    constraints: arch=amd64 cpu-cores=1 mem=4096 root-disk=16384
+  kubernetes-control-plane:
+    charm: kubernetes-control-plane
+    channel: latest/stable
+    revision: 655
+    resources:
+      cni-plugins: 1
+    num_units: 3
+    to:
+    - "7"
+    - "8"
+    - "0"
+    options:
+      channel: 1.33/stable
+    annotations:
+      gui-x: "800"
+      gui-y: "850"
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+  kubernetes-worker:
+    charm: kubernetes-worker
+    channel: latest/stable
+    revision: 372
+    resources:
+      cni-plugins: 1
+    num_units: 4
+    to:
+    - "9"
+    - "10"
+    - "11"
+    - "1"
+    expose: true
+    options:
+      channel: 1.33/stable
+    annotations:
+      gui-x: "90"
+      gui-y: "850"
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+machines:
+  "0": {}
+  "1": {}
+  "2":
+    constraints: arch=amd64 cpu-cores=1 mem=4096 root-disk=16384
+  "3":
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+  "4":
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+  "5":
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+  "6":
+    constraints: arch=amd64 cpu-cores=1 mem=4096 root-disk=16384
+  "7":
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+  "8":
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+  "9":
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+  "10":
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+  "11":
+    constraints: arch=amd64 cpu-cores=2 mem=8192 root-disk=16384
+relations:
+- - kubernetes-control-plane:loadbalancer-external
+  - kubeapi-load-balancer:lb-consumers
+- - kubernetes-control-plane:loadbalancer-internal
+  - kubeapi-load-balancer:lb-consumers
+- - kubernetes-control-plane:kube-control
+  - kubernetes-worker:kube-control
+- - kubernetes-control-plane:certificates
+  - easyrsa:client
+- - etcd:certificates
+  - easyrsa:client
+- - kubernetes-control-plane:etcd
+  - etcd:db
+- - kubernetes-worker:certificates
+  - easyrsa:client
+- - kubeapi-load-balancer:certificates
+  - easyrsa:client
+- - calico:etcd
+  - etcd:db
+- - calico:cni
+  - kubernetes-control-plane:cni
+- - calico:cni
+  - kubernetes-worker:cni
+- - containerd:containerd
+  - kubernetes-worker:container-runtime
+- - containerd:containerd
+  - kubernetes-control-plane:container-runtime
