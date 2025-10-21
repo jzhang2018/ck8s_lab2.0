@@ -1,0 +1,32 @@
+---
+- name: Generate SSH keypairs if missing (personal and juju)
+  hosts: all
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Ensure personal keypair (~/.ssh/id_ed25519) exists
+      ansible.builtin.stat:
+        path: ~/.ssh/id_ed25519
+      register: personal_key
+
+    - name: Generate id_ed25519 keypair if missing
+      ansible.builtin.command:
+        cmd: ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "{{ ansible_user }}-personal"
+      when: not personal_key.stat.exists
+      changed_when: true
+
+- name: Generate juju keypair if missing (controller only)
+  hosts: juju-controller
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Ensure juju keypair (~/.ssh/id_juju) exists
+      ansible.builtin.stat:
+        path: ~/.ssh/id_juju
+      register: juju_key
+
+    - name: Generate id_juju keypair if missing
+      ansible.builtin.command:
+        cmd: ssh-keygen -t ed25519 -f ~/.ssh/id_juju -N "" -C "juju-key"
+      when: not juju_key.stat.exists
+      changed_when: true

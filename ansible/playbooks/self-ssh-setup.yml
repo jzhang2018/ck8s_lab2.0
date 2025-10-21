@@ -1,0 +1,30 @@
+---
+- name: Ensure self-SSH works for all hosts
+  hosts: all
+  become: false
+  gather_facts: false
+
+  tasks:
+    - name: Check if personal key exists
+      ansible.builtin.stat:
+        path: ~/.ssh/id_ed25519.pub
+      register: personal_key
+
+    - name: Add personal key to authorized_keys
+      ansible.builtin.authorized_key:
+        user: "{{ ansible_user }}"
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+      when: personal_key.stat.exists
+
+    - name: Check if juju key exists (for juju-controller)
+      ansible.builtin.stat:
+        path: ~/.ssh/id_juju.pub
+      register: juju_key
+
+    - name: Add juju key to authorized_keys (only if exists)
+      ansible.builtin.authorized_key:
+        user: "{{ ansible_user }}"
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_juju.pub') }}"
+      when: juju_key.stat.exists

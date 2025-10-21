@@ -1,0 +1,68 @@
+---
+- name: Prepopulate known_hosts for all nodes and localhost
+  hosts: all
+  gather_facts: false
+  become: yes
+  vars:
+    ssh_dir: "/home/{{ ssh_user }}/.ssh"
+    known_hosts_file: "{{ ssh_dir }}/known_hosts"
+
+    # Use only the real system hostnames and IPs
+    all_host_entries: >-
+      {{
+        ansible_play_hosts
+        | map('extract', hostvars, ['hostname'])
+        | select('defined')
+        | list
+        + ansible_play_hosts
+          | map('extract', hostvars, ['ansible_host'])
+          | select('defined')
+          | list
+        + ['localhost', '127.0.0.1']
+      }}
+
+  tasks:
+    - name: Ensure .ssh directory exists
+      ansible.builtin.file:
+        path: "{{ ssh_dir }}"
+        state: directory
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0700'
+
+    - name: Ensure known_hosts file exists
+      ansible.builtin.file:
+        path: "{{ known_hosts_file }}"
+        state: touch
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0644'
+
+    - name: Gather host keys for all nodes
+      ansible.builtin.shell: ssh-keyscan -H {{ item }}
+      loop: "{{ all_host_entries }}"
+      register: scanned_keys
+      changed_when: false
+      ignore_errors: yes   # don’t fail if a node is temporarily unreachable
+
+    - name: Add scanned host keys to known_hosts
+      ansible.builtin.lineinfile:
+        path: "{{ known_hosts_file }}"
+        line: "{{ item.stdout }}"
+        state: present
+        create: yes
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0644'
+      loop: "{{ scanned_keys.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Verify known_hosts entries
+      ansible.builtin.shell: cat {{ known_hosts_file }}
+      register: known_hosts_content
+      changed_when: false
+
+    - name: Show known_hosts entries
+      ansible.builtin.debug:
+        msg: "{{ known_hosts_content.stdout_lines }}"

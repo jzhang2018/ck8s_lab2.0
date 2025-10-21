@@ -1,0 +1,26 @@
+---
+- name: Backup existing SSH keys
+  hosts: all
+  gather_facts: true  # to access ansible_date_time
+  vars:
+    backup_dir: "~/.ssh/backup_{{ ansible_date_time.iso8601_basic_short }}"
+    ssh_keys:
+      - id_ed25519
+      - id_juju
+
+  tasks:
+    - name: Create backup directory
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0700'
+
+    - name: Backup existing SSH keys if present
+      copy:
+        src: "~/.ssh/{{ item }}"
+        dest: "{{ backup_dir }}/{{ item }}"
+        remote_src: yes
+        mode: '0600'
+      with_items: "{{ ssh_keys }}"
+      ignore_errors: yes
+      when: ansible_facts['os_family'] is defined

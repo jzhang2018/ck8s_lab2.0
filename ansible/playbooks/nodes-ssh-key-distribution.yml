@@ -1,0 +1,69 @@
+---
+- name: Cluster-wide nodes general SSH key distribution
+  hosts: localhost
+  gather_facts: no
+  become: yes
+  vars:
+    ssh_dir: "/home/{{ ssh_user }}/.ssh"
+    authorized_keys_file: "{{ ssh_dir }}/authorized_keys"
+
+  tasks:
+    - name: Ensure all nodes' authorized_keys exists
+      ansible.builtin.file:
+        path: "{{ authorized_keys_file }}"
+        state: touch
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0600'
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['all'] }}"
+
+    - name: Slurp id_ed25519.pub from all nodes
+      ansible.builtin.slurp:
+        src: "{{ ssh_dir }}/id_ed25519.pub"
+      register: node_pub_keys
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['all'] }}"
+
+    - name: Aggregate all nodes' public keys
+      set_fact:
+        all_node_pub_keys: "{{ node_pub_keys.results | map(attribute='content') | map('b64decode') | list }}"
+
+- name: Add all node public keys to authorized_keys on all nodes
+  hosts: all
+  gather_facts: no
+  become: yes
+  vars:
+    ssh_dir: "/home/{{ ssh_user }}/.ssh"
+    authorized_keys_file: "{{ ssh_dir }}/authorized_keys"
+
+  tasks:
+    - name: Ensure authorized_keys exists
+      ansible.builtin.file:
+        path: "{{ authorized_keys_file }}"
+        state: touch
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0600'
+
+    - name: Add all node public keys to authorized_keys
+      ansible.builtin.lineinfile:
+        path: "{{ authorized_keys_file }}"
+        line: "{{ item }}"
+        state: present
+        create: yes
+        owner: "{{ ssh_user }}"
+        group: "{{ ssh_user }}"
+        mode: '0600'
+      loop: "{{ hostvars['localhost']['all_node_pub_keys'] }}"
+
+    - name: Verify self SSH works without password
+      become: false
+      ansible.builtin.shell: ssh -o BatchMode=yes -o StrictHostKeyChecking=no localhost echo OK
+      args:
+        executable: /bin/bash
+      register: ssh_check
+
+    - name: Show verification result
+      ansible.builtin.debug:
+        var: ssh_check.stdout

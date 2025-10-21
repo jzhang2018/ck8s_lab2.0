@@ -1,0 +1,58 @@
+---
+- name: Validate Self-SSH
+  hosts: all
+  gather_facts: false
+  become: false
+  vars:
+    id_ed25519_key: "/home/{{ ssh_user }}/.ssh/id_ed25519"
+
+  tasks:
+    - name: Test self-SSH with id_ed25519 key
+      ansible.builtin.shell: ssh -i {{ id_ed25519_key }} -o BatchMode=yes {{ ssh_user }}@localhost echo OK
+      args:
+        executable: /bin/bash
+      register: self_ssh
+      ignore_errors: yes
+
+    - name: Show self-SSH result
+      ansible.builtin.debug:
+        msg: "Self-SSH (id_ed25519 key) on {{ inventory_hostname }}: {{ self_ssh.stdout }}"
+
+- name: Validate Juju SSH from controller
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars:
+    juju_key: "~/.ssh/id_juju"
+  tasks:
+    - name: Test Juju SSH from controller to all nodes
+      ansible.builtin.shell: ssh -i {{ juju_key }} -o BatchMode=yes {{ ansible_user }}@{{ item }} echo OK
+      loop: "{{ groups['all'] }}"
+      register: juju_ssh
+      ignore_errors: true
+
+    - name: Show Juju SSH results
+      ansible.builtin.debug:
+        msg: "{{ item.item }} => {{ item.stdout }}"
+      loop: "{{ juju_ssh.results }}"
+
+- name: Validate cluster-wide cross-node SSH (admin key)
+  hosts: all
+  gather_facts: false
+  become: false
+  vars:
+    id_ed25519_key: "/home/{{ ssh_user }}/.ssh/id_ed25519"
+
+  tasks:
+    - name: Test SSH from {{ inventory_hostname }} to all nodes
+      ansible.builtin.shell: ssh -i {{ id_ed25519_key }} -o BatchMode=yes {{ ssh_user }}@{{ hostvars[item].hostname }} echo OK
+      args:
+        executable: /bin/bash
+      loop: "{{ groups['all'] }}"
+      register: cross_node_ssh
+      ignore_errors: true
+
+    - name: Show cross-node SSH results
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} -> {{ item.item }} : {{ item.stdout }}"
+      loop: "{{ cross_node_ssh.results }}"
