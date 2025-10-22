@@ -36,5 +36,5 @@ ansible-playbook -i inventory/hosts.yml playbooks/time-sync.yml
 # check firewall rules
 ansible-playbook -i inventory/hosts.yml playbooks/firewall-ck8s.yml --check
 
-# apply firewall rules
-ansible-playbook -i inventory/hosts.yml playbooks/firewall-ck8s.yml
+# verify nodes to juju-controller connectivities
+ansible-playbook -i inventory/hosts.yml playbooks/verify-juju-ctrl-conn.yml
