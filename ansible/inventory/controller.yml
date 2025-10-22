@@ -1,0 +1,15 @@
+all:
+  hosts:
+    juju-controller:
+      ansiblee_host: 192.168.184.50
+      ansible_user: ck8sadm
+      ansible_become: true
+  vars:
+    # juju_version: "3.6.9"
+    juju_api_port: 17070
+    install_helm: true
+    controller_hostname: juju-controller
+    controller_ip: 192.168.184.50
+    controller_tools:
+      - juju
+      - helm

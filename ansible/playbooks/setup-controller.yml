@@ -1,0 +1,9 @@
+---
+- name: Setup Juju Controller
+  hosts: localhost
+  become: true
+  # vars_files:
+  #   - ../roles/controller/vars/main.yml
+
+  roles:
+    - ../roles/controller

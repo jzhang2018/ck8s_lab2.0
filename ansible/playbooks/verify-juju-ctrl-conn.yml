@@ -1,0 +1,80 @@
+---
+- name: Verify Juju controller connectivity from nodes
+  hosts: all
+  gather_facts: no
+  vars:
+    ssh_port: 22
+    juju_port: 17070
+
+  tasks:
+    - name: Test ICMP (ping) reachability to Juju controller
+      block:
+        - name: Ping controller
+          ansible.builtin.command:
+            cmd: "ping -c 3 {{ juju_controller_ip }}"
+          register: icmp_result
+          ignore_errors: yes
+
+        - name: Report ICMP test result ======>
+          ansible.builtin.debug:
+            msg: >
+              Node {{ inventory_hostname }} → Controller {{ juju_controller_ip }} ICMP result:
+              {% if icmp_result.rc is defined and icmp_result.rc == 0 %}
+                ✅ Ping succeeded
+              {% elif icmp_result.stderr is defined %}
+                ❌ Ping failed: {{ icmp_result.stderr }}
+              {% else %}
+                ⚠️ Ping failed with no output. rc={{ icmp_result.rc | default('unknown') }}
+              {% endif %}
+      rescue:
+        - name: Handle unexpected ICMP errors
+          ansible.builtin.debug:
+            msg: "⚠️ Unexpected error while testing ICMP from {{ inventory_hostname }}"
+
+    - name: Test SSH connectivity to Juju controller
+      block:
+        - name: SSH port test
+          ansible.builtin.command:
+            cmd: "nc -vz -w 5 {{ juju_controller_ip }} {{ ssh_port }}"
+          register: ssh_result
+          ignore_errors: yes
+
+        - name: Report SSH test result ======>
+          ansible.builtin.debug:
+            msg: >
+              Node {{ inventory_hostname }} → Controller {{ juju_controller_ip }} SSH ({{ ssh_port }}) result:
+              {% if ssh_result.rc is defined and ssh_result.rc == 0 %}
+                ✅ Connection succeeded
+              {% elif ssh_result.stderr is defined %}
+                ❌ Connection failed: {{ ssh_result.stderr }}
+              {% else %}
+                ⚠️ Connection test did not run properly. rc={{ ssh_result.rc | default('unknown') }}
+              {% endif %}
+      rescue:
+        - name: Handle unexpected SSH errors
+          ansible.builtin.debug:
+            msg: "⚠️ Unexpected error while testing SSH from {{ inventory_hostname }}"
+
+    - name: Test Juju API port connectivity to controller
+      block:
+        - name: Juju API port test
+          ansible.builtin.command:
+            cmd: "nc -vz -w 5 {{ juju_controller_ip }} {{ juju_port }}"
+          register: juju_port_result
+          ignore_errors: yes
+
+        - name: Report Juju API port test result ======>
+          ansible.builtin.debug:
+            msg: >
+              Node {{ inventory_hostname }} → Controller {{ juju_controller_ip }} Juju port ({{ juju_port }}) result:
+              {% if juju_port_result.rc is defined and juju_port_result.rc == 0 %}
+                ✅ Connection succeeded
+              {% elif juju_port_result.stderr is defined %}
+                ❌ Connection failed: {{ juju_port_result.stderr }}
+              {% else %}
+                ⚠️ Connection test did not run properly. rc={{ juju_port_result.rc | default('unknown') }}
+              {% endif %}
+      rescue:
+        - name: Handle unexpected Juju port errors
+          ansible.builtin.debug:
+            msg: "⚠️ Unexpected error while testing Juju API port from {{ inventory_hostname }}"

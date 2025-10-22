@@ -1,4 +1,7 @@
 ##
+# set controller (there are still some manual steps)
+ansible-playbook -i inventory/controller.yml playbooks/setup-controller.yml
+
 # set system hostnames
 # - it also adds all system hostnames to /etc/hosts for DNS resolution
 ansible-playbook -i inventory/hosts.yml playbooks/set-hostnames.yml

@@ -1,0 +1,94 @@
+---
+# roles/controller/tasks/main.yml
+# Purpose: Bootstrap and verify Juju controller host
+
+- name: Ensure APT cache is updated
+  ansible.builtin.apt:
+    update_cache: yes
+
+# --------------------------------------------------------------------
+# Install dependencies
+# --------------------------------------------------------------------
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - git
+      - software-properties-common
+    state: present
+
+# --------------------------------------------------------------------
+# Install Juju, Helm (stable channel) via snap
+# --------------------------------------------------------------------
+- name: Ensure Snapd is installed
+  ansible.builtin.apt:
+    name: snapd
+    state: present
+
+# - name: Install Juju from stable channel
+#   community.general.snap:
+#     name: juju
+#     channel: stable
+#     state: present
+
+- name: Install tools via snap
+  community.general.snap:
+    name: "{{ item }}"
+    state: present
+    channel: stable
+    classic: true
+  loop: "{{ controller_tools }}"
+   
+- name: Verify Juju and Helm installation
+  ansible.builtin.command: "{{ item }} version"
+  register: tool_version_result
+  loop: "{{ controller_tools }}"
+  become: false
+  
+# --------------------------------------------------------------------
+# Firewall setup
+# --------------------------------------------------------------------
+- name: Ensure UFW is installed
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Allow SSH (22)
+  community.general.ufw:
+    rule: allow
+    port: '22'
+    proto: tcp
+    comment: "Allow SSH"
+
+- name: Allow Juju controller API (17070)
+  community.general.ufw:
+    rule: allow
+    port: '17070'
+    proto: tcp
+    comment: "Allow Juju controller API"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+- name: Verify UFW rules
+  ansible.builtin.command: ufw status numbered
+  register: ufw_check
+  changed_when: false
+  failed_when: ufw_check.rc != 0
+
+# --------------------------------------------------------------------
+# Summary Report
+# --------------------------------------------------------------------
+- name: Display installation summary
+  ansible.builtin.debug:
+    msg:
+      - "✅ Juju controller setup verification complete:"
+      - >
+        {% for res in tool_version_result.results %}
+        - {{ res.item }}: {{ res.stdout | default('unknown') }}
+        {% endfor %}
+      - "Firewall status: {{ ufw_check.stdout_lines[0] if ufw_check.stdout_lines is defined else 'unknown' }}"
+      - "Firewall rules:"
+      - "{{ ufw_check.stdout_lines[1:] | default([]) | join('\n    ') }}"
+
